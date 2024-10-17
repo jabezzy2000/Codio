@@ -1,0 +1,72 @@
+ Quash: A Custom Command Line Shell
+
+Jabez Agyemang-Prempeh
+
+---
+
+Introduction
+
+The Quash (Quick Shell) project implements a custom command-line shell with functionality that replicates core features of popular UNIX shells like `bash` and `sh`. This shell supports built-in commands, process management, signal handling, background processing, I/O redirection, and command piping. These features were implemented in stages, following a modular design approach to maintain clarity, robustness, and scalability. This report outlines the primary design choices, explanations of key components, and documentation of the shell's functionality.
+
+---
+
+ Design Choices
+
+ 1. Modular Design with Helper Functions
+   - Each core feature (e.g., command parsing, built-in commands, piping, redirection) is implemented as a dedicated function. This modular approach organizes the code, making each function focused and improving readability. Functions like `changeDir`, `getWorkingDir`, and `echoFunc` handle specific built-in commands, while `cmd_exec` manages both simple commands and more complex pipeline executions.  
+   - Advantages: This design enables easy maintenance, testing, and debugging by isolating functionality into smaller units. Furthermore, adding new features (e.g., additional built-in commands) is straightforward with minimal disruption to existing code.
+
+ 2. Input Parsing and Command Tokenization
+   - The `strtok` function is used to split user input into tokens, using whitespace as delimiters. This tokenization allows us to identify the command and its arguments, separate piped commands, and detect specific symbols (e.g., `&`, `<`, `>`, `|`).
+   - Handling Special Symbols: Input redirection (`<`), output redirection (`>`), and piping (`|`) are identified during parsing, enabling us to handle these features within respective functions.
+   - Quoting for String Arguments: Quoted strings (e.g., `"Hello World"`) are parsed in `parseQuotes`, which removes surrounding quotes from arguments, allowing commands like `echo "Hello World"` to function correctly.
+
+ 3. Built-in Commands
+   - Built-in commands (`cd`, `pwd`, `env`, `echo`, `setenv`, and `exit`) are implemented as functions to separate them from external command execution. The `cmd_exec` function checks if the command is a built-in; if so, the appropriate function is called instead of creating a new process.
+   - Environment Variables: `getEnv` and `setEnv` allow users to retrieve and set environment variables, leveraging the standard `getenv` and `setenv` functions to access `environ`.
+
+ 4. Process Management with Forking
+   - External Commands: For non-built-in commands, `cmd_exec` forks a child process. In the child process, `execvp` is used to replace the process image with the requested command. If `execvp` fails, an error message is printed using `perror`.
+   - Background Processes: Background execution is implemented by detecting the `&` symbol at the end of a command. If present, `cmd_exec` skips waiting for the child process to complete, allowing the shell to accept more commands immediately. This is achieved by setting a background flag in the parent process.
+
+ 5. Signal Handling and Timeout
+   - SIGINT Signal Handling: The `signal_handler` function is used to catch the `SIGINT` signal (triggered by Ctrl+C). In a standard shell, this signal would terminate both the child process and the shell. To prevent this, `SIGINT` is directed only at the foreground child process (if any), allowing users to interrupt commands without terminating the shell.
+   - Timeout for Long-running Processes: A secondary child process is forked as a timer, which monitors the main child process running a command. If a command takes longer than the defined time limit (10 seconds), the timer process terminates it. This functionality is implemented in `timeout_process` using the `kill` function to send `SIGINT` to the long-running process.
+
+ 6. I/O Redirection
+   - Input (`<`) and Output (`>`) Redirection: The `handleIO` function detects `<` and `>` symbols and redirects input or output to specified files using `dup2`. For example, in `cat < input.txt`, the `<` symbol directs input from `input.txt` to `stdin`. Similarly, `echo Hello > output.txt` writes the output to `output.txt`.
+   - Error Handling: If a file for input or output cannot be opened, `handleIO` reports an error and exits, preventing unintended behavior.
+
+ 7. Command Piping
+   - Piping Implementation (`|`): The piping functionality is implemented by detecting `|` symbols and splitting commands into subcommands. Each segment of the pipeline is set up in `executePipedCommands`, which creates pipes between commands. Each command runs in its process, with `dup2` used to connect the standard output of one command to the standard input of the next.
+   - Error Handling and Resource Management: All pipe file descriptors are closed in both the child and parent processes after their respective use. Each process in the pipeline is awaited by the parent process to ensure orderly cleanup.
+
+---
+
+ Documentation
+
+ Function Documentation
+
+- Main Functions
+  - main: The main loop prints the prompt, reads user input, tokenizes the command, and invokes `cmd_exec` or relevant built-in functions based on user input.
+  - cmd_exec: Manages command execution. For non-built-in commands, it forks a child process, handling background processes, I/O redirection, and timeouts. If the command includes pipes, `executePipedCommands` is called to manage them.
+  - executePipedCommands: Creates a pipeline of commands by using multiple pipes. For each command, `dup2` is used to redirect I/O between processes, creating a seamless flow of data from one command to the next.
+
+- Built-in Commands
+  - changeDir: Changes the current working directory based on the user-specified path.
+  - getWorkingDir: Prints the current directory.
+  - getEnv: Displays environment variables. If an argument is passed, it retrieves the specific variable.
+  - echoFunc: Prints arguments. If arguments begin with `$`, it retrieves the corresponding environment variable.
+  - setEnv: Sets or modifies an environment variable based on user input.
+  - exitShell: Terminates the shell.
+
+- Utility Functions
+  - parseQuotes: Removes surrounding quotes from arguments for commands that require string literals (e.g., `echo "Hello World"`).
+  - timeout_process: Monitors running processes and terminates them if they exceed the allowed time.
+  - handleIO: Detects and handles `<` and `>` symbols for input/output redirection. `dup2` is used to redirect file descriptors to `stdin` or `stdout`.
+
+- Signal Handling
+  - signal_handler: Handles `SIGINT` signals by sending them to the current foreground process, preventing the shell itself from exiting.
+
+---
+
