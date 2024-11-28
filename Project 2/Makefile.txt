@@ -1,0 +1,5 @@
+project2_part1_with_extra_credit: project2_part1_with_extra_credit.c
+	gcc project2_part1_with_extra_credit.c -pthread -std=c99 -lpthread -o project2_part1_with_extra_credit
+
+clean:
+	rm -f project2_part1_with_extra_credit
