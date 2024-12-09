@@ -6,6 +6,8 @@
 /**
  * Utility function file
  */
+void findWaitingTime(ProcessType plist[], int n);
+void findTurnAroundTime(ProcessType plist[], int n);
 
 ProcessType *parse_file(FILE *, int *);
 

@@ -37,3 +37,21 @@ ProcessType *parse_file(FILE * f, int *P_SIZE)
 
 	return pptr;
 }
+
+void findWaitingTime(ProcessType plist[], int n) {
+    plist[0].wt = 0;  // The first process has no waiting time
+
+    // Calculate waiting time for each subsequent process
+    for (int i = 1; i < n; i++) {
+        plist[i].wt = plist[i - 1].wt + plist[i - 1].bt;
+    }
+}
+
+#include "util.h"
+
+// Function to calculate turn around time for all processes
+void findTurnAroundTime(ProcessType plist[], int n) {
+    for (int i = 0; i < n; i++) {
+        plist[i].tat = plist[i].wt + plist[i].bt;
+    }
+}
