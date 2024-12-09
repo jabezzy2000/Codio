@@ -1,47 +1,44 @@
-// list.c
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
 #include <string.h>
 #include "list.h"
 
-// ===================== User List Functions =====================
-
-// Insert a user at the beginning of the user list
+/*****************************************
+ * USER LIST FUNCTIONS
+ *****************************************/
 struct node* insertFirstU(struct node *head, int socket, char *username) {
-    if(findU(head, username) == NULL) {
-        // Create a new user node
-        struct node *link = (struct node*) malloc(sizeof(struct node));
-        if(!link){
-            perror("Failed to allocate memory for new user");
-            exit(EXIT_FAILURE);
-        }
-        link->socket = socket;
-        strncpy(link->username, username, sizeof(link->username) - 1);
-        link->username[sizeof(link->username) - 1] = '\0'; // Ensure null-termination
-        link->next = head;
-        head = link;
-    }
-    else {
-        printf("Duplicate user: %s\n", username);
-    }
-    return head;
+   if(findU(head,username) == NULL) {
+       struct node *link = (struct node*) malloc(sizeof(struct node));
+       link->socket = socket;
+       strcpy(link->username,username);
+       link->dms = NULL;
+       link->next = head;
+       head = link;
+   }
+   return head;
 }
 
-// Find a user by username
 struct node* findU(struct node *head, char* username) {
-    struct node* current = head;
+   struct node* current = head;
+   while(current != NULL) {
+      if(strcmp(current->username, username) == 0)
+         return current;
+      current = current->next;
+   }
+   return NULL;
+}
+
+struct node* findSocketUser(struct node *head, int socket) {
+    struct node *current = head;
     while(current != NULL) {
-        if(strcmp(current->username, username) == 0) {
+        if(current->socket == socket)
             return current;
-        }
         current = current->next;
     }
     return NULL;
 }
 
-// Remove a user from the user list
 struct node* removeUser(struct node *head, char *username) {
     struct node *current = head;
     struct node *prev = NULL;
@@ -49,177 +46,237 @@ struct node* removeUser(struct node *head, char *username) {
         if(strcmp(current->username, username) == 0) {
             if(prev == NULL) {
                 head = current->next;
-            }
-            else {
+            } else {
                 prev->next = current->next;
             }
+            removeAllDirectConnections(current);
             free(current);
-            printf("User '%s' removed from user list.\n", username);
             return head;
         }
         prev = current;
         current = current->next;
     }
-    printf("User '%s' not found in user list.\n", username);
     return head;
 }
 
-// ===================== Room List Functions =====================
-
-// Insert a room at the beginning of the room list
-struct room_node* insertFirstR(struct room_node *head, char *roomname) {
-    if(findR(head, roomname) == NULL) {
-        // Create a new room node
-        struct room_node *link = (struct room_node*) malloc(sizeof(struct room_node));
-        if(!link){
-            perror("Failed to allocate memory for new room");
-            exit(EXIT_FAILURE);
-        }
-        strncpy(link->roomname, roomname, sizeof(link->roomname) - 1);
-        link->roomname[sizeof(link->roomname) - 1] = '\0'; // Ensure null-termination
-        link->users = NULL;
-        link->next = head;
-        head = link;
-    }
-    else {
-        printf("Duplicate Room: %s\n", roomname);
-    }
-    return head;
-}
-
-// Find a room by roomname
-struct room_node* findR(struct room_node *head, char* roomname) {
-    struct room_node* current = head;
+void freeAllUsers(struct node *head) {
+    struct node *current = head;
     while(current != NULL) {
-        if(strcmp(current->roomname, roomname) == 0) {
-            return current;
-        }
+        struct node *temp = current;
         current = current->next;
-    }
-    return NULL;
-}
-
-// Add a user to a room
-void addUserToRoom(struct room_node *room, char *username, int socket) {
-    if(findU(room->users, username) == NULL) {
-        struct node *link = (struct node*) malloc(sizeof(struct node));
-        if(!link){
-            perror("Failed to allocate memory for user in room");
-            exit(EXIT_FAILURE);
-        }
-        link->socket = socket;
-        strncpy(link->username, username, sizeof(link->username) - 1);
-        link->username[sizeof(link->username) - 1] = '\0';
-        link->next = room->users;
-        room->users = link;
-        printf("User '%s' added to room '%s'.\n", username, room->roomname);
-    }
-    else {
-        printf("User '%s' already in room '%s'.\n", username, room->roomname);
+        removeAllDirectConnections(temp);
+        free(temp);
     }
 }
 
-// Remove a user from a room
-void removeUserFromRoom(struct room_node *room, char *username) {
-    struct node *current = room->users;
-    struct node *prev = NULL;
-    while(current != NULL) {
-        if(strcmp(current->username, username) == 0) {
-            if(prev == NULL) { // First node
-                room->users = current->next;
-            }
-            else {
-                prev->next = current->next;
-            }
-            free(current);
-            printf("User '%s' removed from room '%s'.\n", username, room->roomname);
-            return;
-        }
-        prev = current;
-        current = current->next;
+/*****************************************
+ * DIRECT CONNECTIONS (DM)
+ *****************************************/
+void addDirectConnection(struct node *u, char *targetname) {
+    struct dm_node *d = u->dms;
+    while(d != NULL) {
+        if(strcmp(d->username, targetname) == 0) return;
+        d = d->next;
     }
-    printf("User '%s' not found in room '%s'.\n", username, room->roomname);
+    struct dm_node *newdm = malloc(sizeof(struct dm_node));
+    strcpy(newdm->username, targetname);
+    newdm->next = u->dms;
+    u->dms = newdm;
 }
 
-// ===================== DM List Functions =====================
-
-// Insert a DM at the beginning of the DM list
-struct dm_node* insertFirstDM(struct dm_node *head, char *user1, char *user2) {
-    if(findDM(head, user1, user2) == NULL && findDM(head, user2, user1) == NULL) {
-        // Create a new DM node
-        struct dm_node *link = (struct dm_node*) malloc(sizeof(struct dm_node));
-        if(!link){
-            perror("Failed to allocate memory for new DM");
-            exit(EXIT_FAILURE);
-        }
-        strncpy(link->user1, user1, sizeof(link->user1) - 1);
-        link->user1[sizeof(link->user1) - 1] = '\0';
-        strncpy(link->user2, user2, sizeof(link->user2) - 1);
-        link->user2[sizeof(link->user2) - 1] = '\0';
-        link->next = head;
-        head = link;
-        printf("DM created between '%s' and '%s'.\n", user1, user2);
-    }
-    else {
-        printf("DM between '%s' and '%s' already exists.\n", user1, user2);
-    }
-    return head;
-}
-
-// Find a DM between two users
-struct dm_node* findDM(struct dm_node *head, char *user1, char *user2) {
-    struct dm_node* current = head;
-    while(current != NULL) {
-        if( (strcmp(current->user1, user1) == 0 && strcmp(current->user2, user2) == 0) ||
-            (strcmp(current->user1, user2) == 0 && strcmp(current->user2, user1) == 0) ) {
-            return current;
-        }
-        current = current->next;
-    }
-    return NULL;
-}
-
-// Remove a DM between two users
-void removeDM(struct dm_node **head_ref, char *user1, char *user2) {
-    struct dm_node *current = *head_ref;
+bool removeDirectConnection(struct node *u, char *targetname) {
+    struct dm_node *current = u->dms;
     struct dm_node *prev = NULL;
     while(current != NULL) {
-        if( (strcmp(current->user1, user1) == 0 && strcmp(current->user2, user2) == 0) ||
-            (strcmp(current->user1, user2) == 0 && strcmp(current->user2, user1) == 0) ) {
-            if(prev == NULL) { // First node
-                *head_ref = current->next;
-            }
-            else {
+        if(strcmp(current->username, targetname) == 0) {
+            if(prev == NULL) {
+                u->dms = current->next;
+            } else {
                 prev->next = current->next;
             }
             free(current);
-            printf("DM between '%s' and '%s' removed.\n", user1, user2);
-            return;
+            return true;
         }
         prev = current;
         current = current->next;
     }
-    printf("DM between '%s' and '%s' not found.\n", user1, user2);
+    return false;
 }
 
-// List all users
-void list_all_users(struct node *head, char *buffer) {
-    struct node *current = head;
-    strcat(buffer, "Users:\n");
+void removeAllDirectConnections(struct node *u) {
+    struct dm_node *d = u->dms;
+    while(d != NULL) {
+        struct dm_node *temp = d;
+        d = d->next;
+        free(temp);
+    }
+    u->dms = NULL;
+}
+
+/*****************************************
+ * ROOM FUNCTIONS
+ *****************************************/
+struct room_node* createRoom(struct room_node *head, char *roomname) {
+    struct room_node *r = findRoom(head, roomname);
+    if(r != NULL) return head;
+
+    struct room_node *newroom = malloc(sizeof(struct room_node));
+    strcpy(newroom->roomname, roomname);
+    newroom->users = NULL;
+    newroom->next = head;
+    head = newroom;
+    return head;
+}
+
+struct room_node* findRoom(struct room_node *head, char *roomname) {
+    struct room_node *r = head;
+    while(r != NULL) {
+        if(strcmp(r->roomname, roomname) == 0) return r;
+        r = r->next;
+    }
+    return NULL;
+}
+
+bool addUserToRoom(struct room_node *head, char *roomname, char *username) {
+    struct room_node *r = findRoom(head, roomname);
+    if(r == NULL) return false;
+
+    struct room_user_node *u = r->users;
+    while(u != NULL) {
+        if(strcmp(u->username, username) == 0) return true;
+        u = u->next;
+    }
+
+    struct room_user_node *newu = malloc(sizeof(struct room_user_node));
+    strcpy(newu->username, username);
+    newu->next = r->users;
+    r->users = newu;
+    return true;
+}
+
+bool removeUserFromRoom(struct room_node *head, char *roomname, char *username) {
+    struct room_node *r = findRoom(head, roomname);
+    if(r == NULL) return false;
+
+    struct room_user_node *current = r->users;
+    struct room_user_node *prev = NULL;
     while(current != NULL) {
-        strcat(buffer, current->username);
-        strcat(buffer, "\n");
+        if(strcmp(current->username, username) == 0) {
+            if(prev == NULL) {
+                r->users = current->next;
+            } else {
+                prev->next = current->next;
+            }
+            free(current);
+            return true;
+        }
+        prev = current;
         current = current->next;
+    }
+    return false;
+}
+
+void removeUserFromAllRooms(struct room_node *head, char *username) {
+    struct room_node *r = head;
+    while(r != NULL) {
+        removeUserFromRoom(head, r->roomname, username);
+        r = r->next;
     }
 }
 
-// List all rooms
-void list_all_rooms(struct room_node *room_head, char *buffer) {
-    struct room_node *current = room_head;
-    strcat(buffer, "Rooms:\n");
-    while(current != NULL) {
-        strcat(buffer, current->roomname);
-        strcat(buffer, "\n");
-        current = current->next;
+void freeAllRooms(struct room_node *head) {
+    while(head != NULL) {
+        struct room_node *temp = head;
+        head = head->next;
+
+        struct room_user_node *u = temp->users;
+        while(u != NULL) {
+            struct room_user_node *tu = u;
+            u = u->next;
+            free(tu);
+        }
+
+        free(temp);
     }
+}
+
+bool userInRoom(struct room_node *rooms_head, char *username, char *roomname) {
+    struct room_node *r = findRoom(rooms_head, roomname);
+    if(r == NULL) return false;
+    struct room_user_node *u = r->users;
+    while(u != NULL) {
+        if(strcmp(u->username, username) == 0) return true;
+        u = u->next;
+    }
+    return false;
+}
+
+/*****************************************
+ * HELPER FUNCTIONS
+ *****************************************/
+int* getRecipients(struct node *head, struct room_node *rooms_head, char *username) {
+    struct node *sender = findU(head, username);
+    if(!sender) {
+        int *arr = malloc(sizeof(int)*1);
+        arr[0] = -1;
+        return arr;
+    }
+
+    int cap = 100;
+    int count = 0;
+    int *sockets = malloc(sizeof(int)*cap);
+
+    // Add DM connections
+    struct dm_node *d = sender->dms;
+    while(d != NULL) {
+        struct node *u = findU(head, d->username);
+        if(u != NULL) {
+            bool found = false;
+            for(int i=0; i<count; i++){
+                if(sockets[i] == u->socket) {found = true; break;}
+            }
+            if(!found) {
+                if(count == cap) {
+                    cap *= 2;
+                    sockets = realloc(sockets, sizeof(int)*cap);
+                }
+                sockets[count++] = u->socket;
+            }
+        }
+        d = d->next;
+    }
+
+    // Add room members
+    struct room_node *r = rooms_head;
+    while(r != NULL) {
+        if(userInRoom(rooms_head, username, r->roomname)) {
+            struct room_user_node *ru = r->users;
+            while(ru != NULL) {
+                if(strcmp(ru->username, username) != 0) {
+                    struct node *u = findU(head, ru->username);
+                    if(u != NULL) {
+                        bool found = false;
+                        for(int i=0; i<count; i++){
+                            if(sockets[i] == u->socket) {found = true; break;}
+                        }
+                        if(!found) {
+                            if(count == cap) {
+                                cap *= 2;
+                                sockets = realloc(sockets, sizeof(int)*cap);
+                            }
+                            sockets[count++] = u->socket;
+                        }
+                    }
+                }
+                ru = ru->next;
+            }
+        }
+        r = r->next;
+    }
+
+    if(count == cap) {
+        sockets = realloc(sockets, sizeof(int)*(cap+1));
+    }
+    sockets[count] = -1;
+    return sockets;
 }

@@ -1,4 +1,3 @@
-/* System Header Files */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -14,8 +13,6 @@
 #include <netdb.h>
 #include <ctype.h>
 #include <pthread.h>
-
-/* Local Header Files */
 #include "list.h"
 
 #define MAX_READERS 25
@@ -26,13 +23,18 @@
 #define max_clients  30
 #define DEFAULT_ROOM "Lobby"
 #define MAXBUFF   2096
-#define BACKLOG 2 
-
-
-// prototypes
+#define BACKLOG 2
 
 int get_server_socket();
 int start_server(int serv_socket, int backlog);
 int accept_client(int serv_sock);
 void sigintHandler(int sig_num);
 void *client_receive(void *ptr);
+
+extern int numReaders;
+extern pthread_mutex_t rw_lock;
+extern pthread_mutex_t mutex;
+
+extern struct node *head;
+extern struct room_node *rooms_head;
+extern const char *server_MOTD;
